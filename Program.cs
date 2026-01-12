@@ -1,26 +1,80 @@
+using MinimalApi.Infraestrutura.Db;
+using MinimalApi.DTOs;
+using MinimalApi.Dominio.Interfaces;
+using MinimalApi.Dominio.Servicos;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
+using MinimalApi.Dominio.ModelViews;
+using MinimalApi.Dominio.Entidades;
+
+
+#region builder
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddScoped<IAdministradorServico, AdministradorServico>();
+builder.Services.AddScoped<IVeiculosServico, VeiculoServico>();
+builder.Services.AddScoped<VeiculoServico>();
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+
+builder.Services.AddDbContext<DbContexto>(Options => 
+    Options.UseMySql(
+        builder.Configuration.GetConnectionString("Mysql"),
+        ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("Mysql"))
+    )
+    );
+
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+#endregion
 
-app.MapGet("/", () => "Hello World!");
 
-app.MapPost("/login", (MinimalApi.DTOs.LoginDTO loginDTO) =>
+#region Home
+app.MapGet("/", () => Results.Json(new Home()));
+#endregion
+
+
+#region Administrador
+app.MapPost("/login", ([FromBody] LoginDTO loginDTO, IAdministradorServico administradorServico) =>
 {
-    if (loginDTO.Email == "adm@teste.com" && loginDTO.Senha == "123456")
+    var administrador = administradorServico.Login(loginDTO);
+    if (administrador != null)
         return Results.Ok("Login realizado com sucesso!");
     else
-    {
         return Results.Unauthorized();
-    }
+});
+#endregion
 
+
+#region veiculos
+
+app.MapPost("/veiculos", ([FromBody] VeiculoDTO veiculoDTO, VeiculoServico veiculoServico) =>
+{
+    veiculoServico.Incluir(new Veiculo
+    {
+        Nome = veiculoDTO.Nome,
+        Marca = veiculoDTO.Marca,
+        Ano = veiculoDTO.Ano
+    });
+    return Results.Created($"/veiculos/{veiculoDTO.Id}", veiculoDTO);
 });
 
 
+app.MapGet("/veiculos", ([FromQuery]int? pagina, VeiculoServico veiculoServico) =>
+{
+    var veiculos = veiculoServico.Todos(pagina);
+    return Results.Ok(veiculos);
+});
+
+#endregion
+
+
+#region App
+app.UseSwagger();
+app.UseSwaggerUI();
+
 app.Run();
-
-
-
+#endregion

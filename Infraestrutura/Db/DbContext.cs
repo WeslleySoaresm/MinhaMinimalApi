@@ -1,18 +1,34 @@
+using System.Security.Claims;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
-using MinhaMinimalApi.Dominio.Entidades;
+using MinimalApi.Dominio.Entidades;
+
 
 namespace MinimalApi.Infraestrutura.Db;
 
 public class DbContexto : DbContext
-{
-    public DbSet<Administrador> Administradores { get; set; } = default!;
-
+{   
+    private readonly IConfiguration _configuracaoAppSettings;
+    public DbContexto(IConfiguration configuracaoAppSettings)
+    {
+        _configuracaoAppSettings = configuracaoAppSettings;
+    }
+        public DbSet<Administrador> Administradores { get; set; } = default!;
+        public DbSet<Veiculo> Veiculos { get; set; } = default!;
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseMySql(
-            "String de conexão com o banco de dados",
-            ServerVersion.AutoDetect("String de conexão com o banco de dados")
 
-        );
+        var stringConexao = _configuracaoAppSettings.GetConnectionString("Mysql")?.ToString(); //variavel de string de conexão
+        if (!string.IsNullOrEmpty(stringConexao))
+        {
+           optionsBuilder.UseMySql(
+            stringConexao,
+            ServerVersion.AutoDetect(stringConexao)
+
+            ); 
+        }
+
+        
     }
 }
+
