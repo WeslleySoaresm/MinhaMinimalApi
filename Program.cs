@@ -7,10 +7,41 @@ using Microsoft.AspNetCore.Mvc;
 using MinimalApi.Dominio.ModelViews;
 using MinimalApi.Dominio.Entidades;
 using MinhaMinimalApi.Dominio.Enuns;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using System.ComponentModel.DataAnnotations;
 
 
 #region builder
 var builder = WebApplication.CreateBuilder(args);
+
+// 1. Extração segura da chave
+var jwtKey = builder.Configuration["Jwt:Key"]; // Ajuste conforme seu appsettings.json
+if (string.IsNullOrEmpty(jwtKey)) jwtKey = "101520";
+
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options => // Removi a string "JwtBearerDefaults", use o padrão
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = false, // Se definir como true, precisa configurar ValidIssuer
+        ValidateAudience = false, // Se definir como true, precisa configurar ValidAudience
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtKey)),
+        ClockSkew = TimeSpan.Zero // Remova o delay de 5min para testes precisos
+    };
+});
+
+builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<IAdministradorServico, AdministradorServico>();
 builder.Services.AddScoped<IVeiculosServico, VeiculoServico>();
@@ -39,11 +70,44 @@ app.MapGet("/", () => Results.Json(new Home())).WithTags("Home");
 
 
 #region Administrador
+
+
+String GerarTokenJwt(Administrador administrador, string chaveSecreta)
+{
+    if(String.IsNullOrEmpty(jwtKey)) return string.Empty;
+    var tokenHandler = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(chaveSecreta));
+    var credentials = new SigningCredentials(tokenHandler, SecurityAlgorithms.HmacSha256);
+
+    var token = new JwtSecurityToken(
+        claims: new[]
+        {
+            new System.Security.Claims.Claim("id", administrador.Id.ToString()),
+            new System.Security.Claims.Claim("email", administrador.Email),
+            new System.Security.Claims.Claim("perfil", administrador.Perfil)
+        },
+        expires: DateTime.UtcNow.AddHours(1),
+        signingCredentials: credentials
+    );
+    Console.WriteLine($"Tamanho da chave lida: {chaveSecreta.Length} caracteres");
+    return new JwtSecurityTokenHandler().WriteToken(token);
+}
+
+
 app.MapPost("/login", ([FromBody] LoginDTO loginDTO, IAdministradorServico administradorServico) =>
 {
     var administrador = administradorServico.Login(loginDTO);
-    if (administrador != null)
-        return Results.Ok("Login realizado com sucesso!");
+
+    
+    if (administrador != null){
+        string token = GerarTokenJwt(administrador, jwtKey);
+        
+        return Results.Ok(new AdministradorLogado
+        {
+            Email = administrador.Email,
+            Perfil = administrador.Perfil,
+            Token = token
+        });
+    }
     else
         return Results.Unauthorized();
 }).WithTags("Administradores");
@@ -70,7 +134,7 @@ app.MapPost("/Administradores", ([FromBody] AdministradorDTO administradorDTO, I
 
     // 4. Retorno correto usando a instância 'novoAdmin'
     return Results.Created($"/administradores/{novoAdmin.Id}", novoAdmin);
-}).WithTags("Administradores");
+}).RequireAuthorization().WithTags("Administradores");
 
 
 app.MapGet("/Administradores", ([FromQuery] int? pagina, IAdministradorServico administradorServico) =>
@@ -87,7 +151,7 @@ app.MapGet("/Administradores", ([FromQuery] int? pagina, IAdministradorServico a
         });
     }
     return Results.Ok(adms);
-}).WithTags("Administradores");
+}).RequireAuthorization().WithTags("Administradores");
 
 app.MapGet("/Administradores/{id}", ([FromRoute]int id, IAdministradorServico administradorServico) =>
 {
@@ -101,7 +165,7 @@ app.MapGet("/Administradores/{id}", ([FromRoute]int id, IAdministradorServico ad
             Email = administrador.Email,
             Perfil = administrador.Perfil
         });
-}).WithTags("Administradores");
+}).RequireAuthorization().WithTags("Administradores");
 
 #endregion
 
@@ -143,14 +207,14 @@ app.MapPost("/veiculos", ([FromBody] VeiculoDTO veiculoDTO, IVeiculosServico vei
 
     // Use 'veiculo.Id' (instância criada), não 'veiculoDTO.Id' (objeto de entrada)
     return Results.Created($"/veiculos/{veiculo.Id}", veiculo);
-}).WithTags("Veículos");
+}).RequireAuthorization().WithTags("Veículos");
 
 
 app.MapGet("/veiculos", ([FromQuery]int? pagina, VeiculoServico veiculoServico) =>
 {
     var veiculos = veiculoServico.Todos(pagina);
     return Results.Ok(veiculos);
-}).WithTags("Veículos");
+}).RequireAuthorization().WithTags("Veículos");
 
 
 
@@ -162,7 +226,7 @@ app.MapGet("/veiculos/{id}", ([FromRoute]int id, IVeiculosServico veiculoServico
     if (veiculos == null)
         return Results.NotFound();
     return Results.Ok(veiculos);
-}).WithTags("Veículos");
+}).RequireAuthorization().WithTags("Veículos");
 
 
 
@@ -186,7 +250,7 @@ app.MapPut("/veiculos/{id}", ([FromRoute]int id, VeiculoDTO veiculoDTO, IVeiculo
 
     veiculoServico.Atualizar(veiculos);
     return Results.Ok(veiculos);
-}).WithTags("Veículos");
+}).RequireAuthorization().WithTags("Veículos");
 
 
 
@@ -202,7 +266,7 @@ app.MapDelete("/veiculos/{id}", ([FromRoute]int id,  IVeiculosServico veiculoSer
 
     veiculoServico.Deletar(veiculos);
     return Results.NoContent();
-}).WithTags("Veículos");
+}).RequireAuthorization().WithTags("Veículos");
 
 #endregion
 
@@ -210,6 +274,9 @@ app.MapDelete("/veiculos/{id}", ([FromRoute]int id,  IVeiculosServico veiculoSer
 #region App
 app.UseSwagger();
 app.UseSwaggerUI();
+
+app.UseAuthentication();    
+app.UseAuthorization();
 
 app.Run();
 #endregion
