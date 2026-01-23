@@ -13,6 +13,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 
 
 #region builder
@@ -83,12 +84,13 @@ String GerarTokenJwt(Administrador administrador, string chaveSecreta)
         {
             new System.Security.Claims.Claim("id", administrador.Id.ToString()),
             new System.Security.Claims.Claim("email", administrador.Email),
-            new System.Security.Claims.Claim("perfil", administrador.Perfil)
+            new System.Security.Claims.Claim("perfil", administrador.Perfil),
+            new System.Security.Claims.Claim(ClaimTypes.Role, administrador.Perfil)
         },
         expires: DateTime.UtcNow.AddHours(1),
         signingCredentials: credentials
     );
-    Console.WriteLine($"Tamanho da chave lida: {chaveSecreta.Length} caracteres");
+    
     return new JwtSecurityTokenHandler().WriteToken(token);
 }
 
