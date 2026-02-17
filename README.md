@@ -1,6 +1,6 @@
 
 
-```markdown
+
 # MinhaMinimalApi 🚀
 
 Uma Web API construída com .NET 9 utilizando o conceito de **Minimal APIs**, focada em performance, código limpo e testes automatizados. O projeto simula um sistema de administração com autenticação JWT e persistência em base de dados MySQL.
