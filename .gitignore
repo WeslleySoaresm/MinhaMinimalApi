@@ -5,6 +5,14 @@
 # .NET Core build folders
 bin/
 obj/
+Infraestrutura/obj/
+Infraestrutura/bin/
+Aplicacao/obj/
+Aplicacao/bin/
+Dominio/obj/
+Dominio/bin/
+Testes/obj/
+Testes/bin/
 
 # Common node modules locations
 /node_modules
