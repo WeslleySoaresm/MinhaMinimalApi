@@ -8,6 +8,8 @@ namespace MinimalApi.Infraestrutura.Db;
 
 public class DbContexto : DbContext
 {   
+    public DbContexto(DbContextOptions<DbContexto> options) : base(options) { }
+
     private readonly IConfiguration _configuracaoAppSettings;
     public DbContexto(IConfiguration configuracaoAppSettings)
     {
@@ -17,18 +19,18 @@ public class DbContexto : DbContext
         public DbSet<Veiculo> Veiculos { get; set; } = default!;
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
+        // Se as opções já foram configuradas (pelo UseInMemoryDatabase no teste), não faça nada!
+        if (optionsBuilder.IsConfigured) return;
 
-        var stringConexao = _configuracaoAppSettings.GetConnectionString("Mysql")?.ToString(); //variavel de string de conexão
-        if (!string.IsNullOrEmpty(stringConexao))
+        if (_configuracaoAppSettings != null)
         {
-           optionsBuilder.UseMySql(
-            stringConexao,
-            ServerVersion.AutoDetect(stringConexao)
-
-            ); 
+            var stringConexao = _configuracaoAppSettings.GetConnectionString("mysql");
+            if (!string.IsNullOrWhiteSpace(stringConexao))
+            {
+                // Só entra aqui se houver uma string de conexão real
+                optionsBuilder.UseMySql(stringConexao, ServerVersion.AutoDetect(stringConexao));
+            }
         }
-
-        
     }
 }
 

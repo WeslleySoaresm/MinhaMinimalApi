@@ -21,5 +21,6 @@ public sealed class AdministradorTest
         Assert.AreEqual("administrador@teste.com", adm.Email);
         Assert.AreEqual("SenhaSegura123!", adm.Senha);
 
+    
     }
 }

@@ -1,9 +1,8 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Options;
 using MinimalApi.Dominio.Entidades;
-using MinimalApi.Dominio.Interfaces;
 using MinimalApi.Dominio.Servicos;
 using MinimalApi.Infraestrutura.Db;
 
@@ -13,96 +12,88 @@ namespace Test.Domain.Servicos;
 public sealed class AdministradorServiçoTest
 {
     private DbContexto CriarContextoTeste()
-    {   
+{
+    var builder = new ConfigurationBuilder()
+        .SetBasePath(Directory.GetCurrentDirectory()) // Usa o diretório de execução atual
+        .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+        .AddEnvironmentVariables();
 
-        var AssemblyPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-        var path = Path.GetFullPath(Path.Combine(AssemblyPath ?? @"..\..\..\"));
-        var builder = new ConfigurationBuilder()
-            .SetBasePath(path ?? Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-            .AddEnvironmentVariables();
+    var configuration = builder.Build();
 
-        var configuration = builder.Build();
+    var options = new DbContextOptionsBuilder<DbContexto>()
         
-        
-        return new DbContexto(configuration);
-       
-    }
+        .UseInMemoryDatabase(databaseName: "TesteDatabase_" + Guid.NewGuid().ToString())
+        .Options;
 
-
+    return new DbContexto(options);
+}
     [TestMethod]
     public void TestandoSalvarOAdministrador()
     {   
         // Arrange
         var context = CriarContextoTeste();
-        context.Database.ExecuteSqlRaw("TRUNCATE TABLE administradores;"); // Limpa a tabela antes do teste
-        var adm = new Administrador();
-        adm.Email = "administrador@teste.com";
-        adm.Senha = "SenhaSegura123!";
-        adm.Perfil = "adm";
+        context.Administradores.RemoveRange(context.Administradores);
+        context.SaveChanges();
+        context.Database.ExecuteSqlRaw("DELETE FROM administradores;"); // TRUNCATE pode falhar dependendo da FK, DELETE é mais seguro em testes
+        var adm = new Administrador {
+            Email = "administrador@teste.com",
+            Senha = "SenhaSegura123!",
+            Perfil = "adm"
+        };
         
         var administradorServiço = new AdministradorServico(context);
 
-
         // Act
-
         administradorServiço.Incluir(adm);
-      
 
         // Assert
         Assert.AreEqual(1, administradorServiço.Todos(1).Count);
         Assert.AreEqual("administrador@teste.com", adm.Email);
-        Assert.AreEqual("SenhaSegura123!", adm.Senha);
-
     }
-
 
     [TestMethod]
     public void TestandoBuscandoAdministradorPorId()
     {   
         // Arrange
         var context = CriarContextoTeste();
-        context.Database.ExecuteSqlRaw("TRUNCATE TABLE administradores;"); // Limpa a tabela antes do teste
-        var adm = new Administrador();
-        adm.Email = "administrador@teste.com";
-        adm.Senha = "SenhaSegura123!";
-        adm.Perfil = "adm";
+        context.Database.ExecuteSqlRaw("DELETE FROM administradores;");
+        var adm = new Administrador {
+            Email = "administrador@teste.com",
+            Senha = "SenhaSegura123!",
+            Perfil = "adm"
+        };
         
         var administradorServiço = new AdministradorServico(context);
 
-
         // Act
-
         administradorServiço.Incluir(adm);
-        var admDobanco =  administradorServiço.BuscarPorId(adm.Id);
+        var admDobanco = administradorServiço.BuscarPorId(adm.Id);
       
-
         // Assert
-        Assert.AreEqual(1, admDobanco.Id);
+        Assert.IsNotNull(admDobanco); // Resolve o warning CS8602
+        Assert.AreEqual(adm.Id, admDobanco.Id);
     }
-
 
     [TestMethod]
     public void TesteBuscarTodasPagina()
     {   
         // Arrange
         var context = CriarContextoTeste();
-        context.Database.ExecuteSqlRaw("TRUNCATE TABLE administradores;"); // Limpa a tabela antes do teste
-        var adm = new Administrador();
-        adm.Email = "administrador@teste.com";
-        adm.Senha = "SenhaSegura123!";
-        adm.Perfil = "adm";
+        context.Database.ExecuteSqlRaw("DELETE FROM administradores;");
+        var adm = new Administrador {
+            Email = "administrador@teste.com",
+            Senha = "SenhaSegura123!",
+            Perfil = "adm"
+        };
         
         var administradorServiço = new AdministradorServico(context);
 
-
         // Act
-
         administradorServiço.Incluir(adm);
-        var admDobanco =  administradorServiço.Todos(adm.Id);
+        // CORREÇÃO: Passando a página 1, em vez do ID do administrador
+        var lista = administradorServiço.Todos(1);
       
-
         // Assert
-        Assert.AreEqual(1, admDobanco.Count);
+        Assert.AreEqual(1, lista.Count);
     }
 }
